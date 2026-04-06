@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Percent } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Percent } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency, formatPercentage } from '../utils/calculations';
 import { Sparkline } from './Sparkline';

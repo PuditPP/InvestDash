@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, MoreVertical, Edit2, Trash2, Download, ExternalLink, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreVertical, Edit2, Trash2, Download, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency, formatPercentage, calculateHoldingsMetrics } from '../utils/calculations';
 import { Sparkline } from './Sparkline';

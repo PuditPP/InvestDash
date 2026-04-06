@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Newspaper, ExternalLink, ChevronLeft, ChevronRight, Briefcase, Loader2, RefreshCw, Tag } from 'lucide-react';
+import { ExternalLink, ChevronLeft, ChevronRight, Briefcase, Loader2, RefreshCw, Tag } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { fetchCompanyNews, type NewsItem } from '../services/marketData';
 

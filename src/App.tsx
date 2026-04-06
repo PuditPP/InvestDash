@@ -15,7 +15,7 @@ import { PortfolioProvider, usePortfolio } from './context/PortfolioContext';
 import type { Holding } from './types';
 
 const DashboardContent: React.FC = () => {
-  const { summary, user, isLoading: contextLoading } = usePortfolio();
+  const { summary, user } = usePortfolio();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);

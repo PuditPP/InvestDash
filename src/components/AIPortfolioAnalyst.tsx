@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Brain, Loader2, RefreshCcw, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { Sparkles, Brain, Loader2, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { analyzePortfolio, fetchCompanyNews, type NewsItem } from '../services/marketData';
 

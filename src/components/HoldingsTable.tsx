@@ -144,15 +144,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {h.logo ? (
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-white flex-shrink-0 border border-border">
-                          <img src={h.logo} alt={h.symbol} className="w-full h-full object-contain" />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-sidebar border border-border flex items-center justify-center flex-shrink-0">
-                          <span className="text-[10px] font-bold text-gray-400">{h.symbol.slice(0, 2)}</span>
-                        </div>
-                      )}
                       <div className="flex flex-col">
                         <span className="font-bold text-white group-hover:text-blue-400 transition-colors">{h.symbol}</span>
                         <span className="text-xs text-gray-500 truncate max-w-[100px]">{h.name}</span>
@@ -164,7 +155,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
                   <td className="px-6 py-4 font-medium">{formatCurrency(h.currentPrice)}</td>
                   <td className="px-6 py-4 font-bold">{formatCurrency(h.marketValue)}</td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col">
+                    <div className="flex flex-col whitespace-nowrap">
                       <span className={`font-bold ${h.unrealizedGain >= 0 ? 'text-success' : 'text-danger'}`}>
                         {formatCurrency(h.unrealizedGain)}
                       </span>
@@ -174,7 +165,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${h.dailyChangePercentage >= 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                    <span className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${h.dailyChangePercentage >= 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
                       {formatPercentage(h.dailyChangePercentage)}
                     </span>
                   </td>

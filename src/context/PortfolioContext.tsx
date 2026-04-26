@@ -116,7 +116,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
           averageCost: item.average_cost,
           currentPrice: item.current_price || item.average_cost,
           priorClose: item.prior_close || item.average_cost,
-          logo: item.logo,
           purchaseDate: item.purchase_date,
           note: item.note,
           history: item.history || []
@@ -175,7 +174,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
           averageCost: item.average_cost,
           currentPrice: item.current_price || item.average_cost,
           priorClose: item.prior_close || item.average_cost,
-          logo: item.logo,
           purchaseDate: item.purchase_date,
           note: item.note,
           history: item.history || []
@@ -215,7 +213,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     let currentPrice = newHolding.averageCost;
     let priorClose = newHolding.averageCost;
     let name = newHolding.name;
-    let logo = (newHolding as any).logo;
     let history: number[] = [];
 
     try {
@@ -230,12 +227,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         if (quote.name) name = quote.name;
       }
       
-      // Re-fetch profile for logo if not provided
-      if (!logo) {
-        const profile = await fetchCompanyProfile(newHolding.symbol.toUpperCase());
-        if (profile?.logo) logo = profile.logo;
-      }
-
       if (histData) history = histData;
 
       const { data, error } = await supabase
@@ -252,14 +243,13 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
           note: newHolding.note,
           current_price: currentPrice,
           prior_close: priorClose,
-          logo: logo,
           history: history
         }])
         .select();
 
       if (error) throw error;
       if (data && data.length > 0) {
-        const added = { ...newHolding, id: data[0].id, currentPrice, priorClose, history, name, logo };
+        const added = { ...newHolding, id: data[0].id, currentPrice, priorClose, history, name };
         setHoldings(prev => [...prev, added]);
 
         // Create initial transaction record

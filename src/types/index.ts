@@ -24,7 +24,6 @@ export interface Holding {
   averageCost: number;
   currentPrice: number;
   priorClose: number;
-  logo?: string;
   purchaseDate: string;
   note?: string;
   history?: number[];

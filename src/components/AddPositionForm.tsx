@@ -20,7 +20,6 @@ export const AddPositionForm: React.FC<AddPositionFormProps> = ({ onClose, editi
     quantity: editingHolding?.quantity.toString() || '',
     averageCost: editingHolding?.averageCost.toString() || '',
     purchaseDate: editingHolding?.purchaseDate || new Date().toISOString().split('T')[0],
-    logo: editingHolding?.logo || '',
     note: editingHolding?.note || '',
   });
 
@@ -113,8 +112,7 @@ export const AddPositionForm: React.FC<AddPositionFormProps> = ({ onClose, editi
           symbol: suggestion.symbol,
           name: profile.name,
           assetType: profile.assetType as AssetType,
-          sector: profile.sector as Sector,
-          logo: profile.logo || ''
+          sector: profile.sector as Sector
         }));
       } else {
         // Fallback if profile fetch fails
@@ -123,8 +121,7 @@ export const AddPositionForm: React.FC<AddPositionFormProps> = ({ onClose, editi
           symbol: suggestion.symbol,
           name: suggestion.description,
           assetType: suggestion.type === 'ETP' ? 'ETF' : (suggestion.type === 'Crypto' ? 'Crypto' : 'Stock'),
-          sector: 'Other',
-          logo: ''
+          sector: 'Other'
         }));
       }
     } catch (err) {

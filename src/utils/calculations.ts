@@ -4,6 +4,7 @@ export const ASSET_COLORS: Record<AssetType, string> = {
   Stock: '#3b82f6',
   ETF: '#10b981',
   Crypto: '#f59e0b',
+  Bitcoin: '#f7931a',
   Bond: '#8b5cf6',
   Cash: '#6b7280',
 };
@@ -19,6 +20,7 @@ export const SECTOR_COLORS: Record<Sector, string> = {
   Industrial: '#f97316',
   'Real Estate': '#14b8a6',
   Materials: '#a855f7',
+  Crypto: '#f7931a',
   Other: '#64748b',
 };
 

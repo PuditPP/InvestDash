@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ExternalLink, ChevronLeft, ChevronRight, Briefcase, Loader2, RefreshCw, Tag } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { fetchCompanyNews, type NewsItem } from '../services/marketData';
+import { fetchCompanyNews, getNewsFallbackImage, type NewsItem } from '../services/marketData';
 
 export const GlobalNewsFeed: React.FC = () => {
   const { holdings } = usePortfolio();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
 
   const loadPortfolioNews = useCallback(async () => {
     if (holdings.length === 0) {
@@ -35,7 +35,7 @@ export const GlobalNewsFeed: React.FC = () => {
       const uniqueNews = Array.from(new Map(allNews.map(item => [item.id, item])).values());
       const sortedNews = uniqueNews.sort((a, b) => b.datetime - a.datetime);
       
-      setNews(sortedNews);
+      setNews(sortedNews.slice(0, 20)); // Keep top 20 for the slider
     } catch (err) {
       console.error('Failed to load portfolio news');
     } finally {
@@ -47,12 +47,29 @@ export const GlobalNewsFeed: React.FC = () => {
     loadPortfolioNews();
   }, [loadPortfolioNews]);
 
-  // Pagination logic
-  const totalPages = Math.ceil(news.length / itemsPerPage) || 1;
-  const currentNews = news.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  useEffect(() => {
+    const checkScroll = () => {
+      if (scrollContainerRef.current) {
+        setShowScrollButtons(
+          scrollContainerRef.current.scrollWidth > scrollContainerRef.current.clientWidth
+        );
+      }
+    };
 
-  const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
-  const goToPrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [news]);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -400 : 400;
+      scrollContainerRef.current.scrollBy({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   if (isLoading && news.length === 0) {
     return (
@@ -91,25 +108,22 @@ export const GlobalNewsFeed: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 bg-sidebar border border-border rounded-lg p-1">
-            <button 
-              onClick={goToPrevPage}
-              disabled={currentPage === 1}
-              className="p-1.5 hover:bg-card-hover disabled:opacity-30 disabled:hover:bg-transparent rounded-md transition-all text-gray-400"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-bold px-2 text-gray-400 min-w-[60px] text-center">
-              {currentPage} / {totalPages}
-            </span>
-            <button 
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages}
-              className="p-1.5 hover:bg-card-hover disabled:opacity-30 disabled:hover:bg-transparent rounded-md transition-all text-gray-400"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {showScrollButtons && (
+            <div className="flex items-center gap-1 bg-sidebar border border-border rounded-lg p-1">
+              <button 
+                onClick={() => scroll('left')}
+                className="p-1.5 hover:bg-card-hover rounded-md transition-all text-gray-400"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => scroll('right')}
+                className="p-1.5 hover:bg-card-hover rounded-md transition-all text-gray-400"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           
           <button 
             onClick={loadPortfolioNews}
@@ -120,33 +134,35 @@ export const GlobalNewsFeed: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {currentNews.map((item) => (
+      <div 
+        ref={scrollContainerRef}
+        className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x snap-mandatory"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {news.map((item) => (
           <div 
             key={item.id} 
-            className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/5 transition-all flex flex-col"
+            className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/5 transition-all flex flex-col min-w-[280px] md:min-w-[320px] max-w-[320px] snap-start"
           >
-            {item.image && (
-              <div className="h-32 w-full overflow-hidden bg-sidebar relative">
-                <img 
-                  src={item.image} 
-                  alt="" 
-                  className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" 
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent opacity-60" />
-                <div className="absolute bottom-2 left-3 flex flex-col gap-1">
-                  <div className="px-2 py-0.5 bg-blue-600 rounded text-[9px] font-black uppercase tracking-tighter w-fit">
-                    {item.source}
-                  </div>
-                  {item.relatedSymbol && (
-                    <div className="px-2 py-0.5 bg-sidebar/80 backdrop-blur-sm border border-border rounded text-[9px] font-black text-white uppercase tracking-tighter w-fit flex items-center gap-1">
-                      <Tag className="w-2 h-2 text-blue-400" />
-                      {item.relatedSymbol}
-                    </div>
-                  )}
+            <div className="h-32 w-full overflow-hidden bg-sidebar relative">
+              <img 
+                src={item.image || getNewsFallbackImage(item.relatedSymbol, item.source)} 
+                alt="" 
+                className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent opacity-60" />
+              <div className="absolute bottom-2 left-3 flex flex-col gap-1">
+                <div className="px-2 py-0.5 bg-blue-600 rounded text-[9px] font-black uppercase tracking-tighter w-fit">
+                  {item.source}
                 </div>
+                {item.relatedSymbol && (
+                  <div className="px-2 py-0.5 bg-sidebar/80 backdrop-blur-sm border border-border rounded text-[9px] font-black text-white uppercase tracking-tighter w-fit flex items-center gap-1">
+                    <Tag className="w-2 h-2 text-blue-400" />
+                    {item.relatedSymbol}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
             
             <div className="p-4 flex-1 flex flex-col justify-between">
               <div className="space-y-2">
@@ -194,3 +210,4 @@ export const GlobalNewsFeed: React.FC = () => {
     </div>
   );
 };
+

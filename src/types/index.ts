@@ -1,4 +1,4 @@
-export type AssetType = 'Stock' | 'ETF' | 'Crypto' | 'Bond' | 'Cash';
+export type AssetType = 'Stock' | 'ETF' | 'Crypto' | 'Bitcoin' | 'Bond' | 'Cash';
 
 export type Sector = 
   | 'Technology' 
@@ -11,6 +11,7 @@ export type Sector =
   | 'Industrial' 
   | 'Real Estate' 
   | 'Materials' 
+  | 'Crypto'
   | 'Other';
 
 export interface Holding {
@@ -23,6 +24,7 @@ export interface Holding {
   averageCost: number;
   currentPrice: number;
   priorClose: number;
+  logo?: string;
   purchaseDate: string;
   note?: string;
   history?: number[];
@@ -36,12 +38,23 @@ export interface WatchlistItem {
   priorClose: number;
 }
 
+export interface Transaction {
+  id: string;
+  holdingId: string;
+  symbol: string;
+  type: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  date: string;
+}
+
 export interface PortfolioSummary {
   totalValue: number;
   dailyChange: number;
   dailyChangePercentage: number;
   totalReturn: number;
   totalReturnPercentage: number;
+  benchmarkReturn?: number;
   cashAvailable: number;
   lastUpdated?: string;
 }

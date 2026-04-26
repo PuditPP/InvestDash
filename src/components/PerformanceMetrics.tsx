@@ -26,9 +26,9 @@ export const PerformanceMetricsPanel: React.FC = () => {
   };
 
   return (
-    <div className="bg-card border border-border p-6 rounded-xl h-full space-y-8">
+    <div className="bg-card border border-border p-4 sm:p-6 rounded-xl h-full space-y-8">
       <div>
-        <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center gap-2">
+        <h2 className="text-lg sm:text-xl font-bold tracking-tight mb-6 flex items-center gap-2">
           <Target className="w-5 h-5 text-blue-500" />
           Performance Metrics
         </h2>
@@ -36,51 +36,51 @@ export const PerformanceMetricsPanel: React.FC = () => {
         <div className="grid grid-cols-1 gap-6">
           <div className="space-y-4">
             <div className={`p-4 rounded-lg border ${getStatusBg()} flex gap-3`}>
-              {getStatusIcon()}
-              <div>
-                <p className="text-sm font-bold">{diversificationStatus.status}</p>
+              <div className="shrink-0">{getStatusIcon()}</div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold truncate">{diversificationStatus.status}</p>
                 <p className="text-xs text-gray-400 leading-relaxed">{diversificationStatus.message}</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-sidebar rounded-lg border border-border">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-sidebar rounded-lg border border-border gap-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded bg-success/10 text-success">
+                <div className="p-2 rounded bg-success/10 text-success shrink-0">
                   <TrendingUp className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-medium">Total Unrealized Gain</span>
               </div>
-              <div className="text-right">
-                <p className={`text-sm font-bold ${totalUnrealizedGain >= 0 ? 'text-success' : 'text-danger'}`}>
+              <div className="text-left sm:text-right min-w-0">
+                <p className={`text-sm font-bold ${totalUnrealizedGain >= 0 ? 'text-success' : 'text-danger'} truncate`}>
                   {formatCurrency(totalUnrealizedGain)}
                 </p>
-                <p className={`text-xs ${totalUnrealizedGain >= 0 ? 'text-success' : 'text-danger'}`}>
+                <p className={`text-xs ${totalUnrealizedGain >= 0 ? 'text-success' : 'text-danger'} truncate`}>
                   {formatPercentage(totalReturnPercentage)}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-sidebar rounded-lg border border-border">
-                <p className="text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider">Best Performer</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 bg-sidebar rounded-lg border border-border min-w-0">
+                <p className="text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider truncate">Best Performer</p>
                 {bestPerformer ? (
-                  <>
-                    <p className="text-sm font-bold text-white">{bestPerformer.symbol}</p>
+                  <div className="overflow-hidden">
+                    <p className="text-sm font-bold text-white truncate">{bestPerformer.symbol}</p>
                     <p className="text-xs font-bold text-success">{formatPercentage(bestPerformer.returnPercentage)}</p>
-                  </>
+                  </div>
                 ) : (
                   <p className="text-sm font-medium text-gray-500">N/A</p>
                 )}
               </div>
-              <div className="p-4 bg-sidebar rounded-lg border border-border">
-                <p className="text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider">Worst Performer</p>
+              <div className="p-4 bg-sidebar rounded-lg border border-border min-w-0">
+                <p className="text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider truncate">Worst Performer</p>
                 {worstPerformer ? (
-                  <>
-                    <p className="text-sm font-bold text-white">{worstPerformer.symbol}</p>
+                  <div className="overflow-hidden">
+                    <p className="text-sm font-bold text-white truncate">{worstPerformer.symbol}</p>
                     <p className="text-xs font-bold text-danger">{formatPercentage(worstPerformer.returnPercentage)}</p>
-                  </>
+                  </div>
                 ) : (
                   <p className="text-sm font-medium text-gray-500">N/A</p>
                 )}

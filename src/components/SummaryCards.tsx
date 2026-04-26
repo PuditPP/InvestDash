@@ -26,6 +26,11 @@ export const SummaryCards: React.FC = () => {
       color: summary.dailyChange >= 0 ? 'text-success' : 'text-danger',
       isNegative: summary.dailyChange < 0,
       sparkColor: summary.dailyChange >= 0 ? '#10b981' : '#ef4444',
+      benchmark: summary.benchmarkReturn !== undefined ? {
+        label: 'S&P 500',
+        value: formatPercentage(summary.benchmarkReturn),
+        color: summary.benchmarkReturn >= 0 ? 'text-success' : 'text-danger'
+      } : undefined
     },
     {
       label: 'Overall ROI',
@@ -48,13 +53,25 @@ export const SummaryCards: React.FC = () => {
               <card.icon className="w-4 h-4" />
             </div>
           </div>
-          <div className="space-y-1 relative z-10">
-            <h3 className="text-2xl font-bold tracking-tight">
+          <div className="space-y-1 relative z-10 min-w-0">
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight truncate" title={card.value}>
               {card.isNegative && '-'} {card.value}
             </h3>
-            <p className={`text-sm font-medium ${card.color}`}>
-              {card.subValue}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className={`text-sm font-medium ${card.color} truncate`}>
+                {card.subValue}
+              </p>
+              {card.label === 'Daily Change' && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold bg-sidebar px-2 py-0.5 rounded border border-border">
+                  <span className="text-gray-500">S&P 500:</span>
+                  {(card as any).benchmark ? (
+                    <span className={(card as any).benchmark.color}>{(card as any).benchmark.value}</span>
+                  ) : (
+                    <span className="text-gray-600 animate-pulse">Loading...</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-12 opacity-20">
             <Sparkline data={mockHistory} color={card.sparkColor} width="100%" height="100%" />

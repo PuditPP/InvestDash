@@ -51,16 +51,16 @@ export const WatchlistForm: React.FC<WatchlistFormProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight">Add New Watchlist</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-card border border-border w-full max-w-md min-h-screen sm:min-h-0 sm:rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between sticky top-0 bg-card z-20">
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Add to Watchlist</h2>
           <button onClick={onClose} className="p-2 hover:bg-sidebar rounded-full transition-colors">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6 pb-20 sm:pb-6">
           {error && (
             <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg flex items-center gap-2 text-danger text-sm">
               <AlertCircle className="w-4 h-4" />

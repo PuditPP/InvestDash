@@ -9,6 +9,7 @@ import { HoldingsTable } from './components/HoldingsTable';
 import { PerformanceMetricsPanel } from './components/PerformanceMetrics';
 import { AddPositionForm } from './components/AddPositionForm';
 import { WatchlistForm } from './components/WatchlistForm';
+import { ProfileSettings } from './components/ProfileSettings';
 import { Auth } from './components/Auth';
 import { PortfolioProvider, usePortfolio } from './context/PortfolioContext';
 
@@ -19,10 +20,19 @@ const DashboardContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<Holding | undefined>(undefined);
+  const [preselectedAsset, setPreselectedAsset] = useState<{ symbol: string, description: string } | undefined>(undefined);
 
   const handleEdit = (holding: Holding) => {
     setEditingHolding(holding);
+    setPreselectedAsset(undefined);
+    setIsAddModalOpen(true);
+  };
+
+  const handleSelectAsset = (asset: { symbol: string, description: string }) => {
+    setPreselectedAsset(asset);
+    setEditingHolding(undefined);
     setIsAddModalOpen(true);
   };
 
@@ -30,6 +40,7 @@ const DashboardContent: React.FC = () => {
     setIsAddModalOpen(false);
     setIsWatchlistModalOpen(false);
     setEditingHolding(undefined);
+    setPreselectedAsset(undefined);
   };
 
   if (!user) {
@@ -37,15 +48,20 @@ const DashboardContent: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-background text-white overflow-hidden">
+    <div className="flex h-screen bg-background text-white overflow-hidden relative">
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         onAddWatchlist={() => setIsWatchlistModalOpen(true)}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
       />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <TopNav onAddPosition={() => setIsAddModalOpen(true)} />
+        <TopNav 
+          onSelectAsset={handleSelectAsset}
+          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
           {activeTab === 'dashboard' && (
@@ -68,14 +84,14 @@ const DashboardContent: React.FC = () => {
                 <SummaryCards />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                <div className="md:col-span-1">
                   <AssetAllocationChart />
                 </div>
-                <div className="lg:col-span-1">
+                <div className="md:col-span-1">
                   <SectorBreakdownChart />
                 </div>
-                <div className="lg:col-span-1">
+                <div className="md:col-span-2 xl:col-span-1">
                   <PerformanceMetricsPanel />
                 </div>
               </div>
@@ -107,24 +123,9 @@ const DashboardContent: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'performance' && (
-            <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
-              <header>
-                <h1 className="text-3xl font-bold tracking-tight">Performance Analysis</h1>
-                <p className="text-gray-500 mt-1">Diversification health and historical returns.</p>
-              </header>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <PerformanceMetricsPanel />
-                <div className="bg-card border border-border p-6 rounded-xl flex flex-col justify-center items-center text-center space-y-4">
-                  <div className="w-16 h-16 bg-blue-600/10 rounded-full flex items-center justify-center">
-                    <TrendingUp className="text-blue-500 w-8 h-8" />
-                  </div>
-                  <h3 className="text-xl font-bold">Historical Trends</h3>
-                  <p className="text-gray-500 max-w-sm">
-                    Historical performance charts are currently being implemented. Check back soon for deep-dive analytics.
-                  </p>
-                </div>
-              </div>
+          {activeTab === 'settings' && (
+            <div className="p-4 md:p-0">
+              <ProfileSettings />
             </div>
           )}
         </main>
@@ -134,6 +135,7 @@ const DashboardContent: React.FC = () => {
         <AddPositionForm 
           onClose={closeModals} 
           editingHolding={editingHolding} 
+          preselectedAsset={preselectedAsset}
         />
       )}
 

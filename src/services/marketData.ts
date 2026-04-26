@@ -6,8 +6,10 @@
 const FINNHUB_API_BASE = 'https://finnhub.io/api/v1';
 // API Keys from environment variables
 const API_TOKEN = import.meta.env.VITE_FINNHUB_API_KEY; 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const OPENAI_MODEL = 'gpt-4o';
+
+export const BENCHMARK_SYMBOL = 'SPY'; // S&P 500 ETF
 
 export interface MarketQuote {
   symbol: string;
@@ -92,17 +94,32 @@ export const fetchSingleQuote = async (symbol: string): Promise<MarketQuote | nu
 /**
  * Common crypto mappings for symbols to full names
  */
-const COMMON_CRYPTO: Record<string, { name: string; sector: string }> = {
-  'BTC': { name: 'Bitcoin', sector: 'Financials' },
-  'ETH': { name: 'Ethereum', sector: 'Financials' },
-  'SOL': { name: 'Solana', sector: 'Financials' },
-  'BNB': { name: 'Binance Coin', sector: 'Financials' },
-  'ADA': { name: 'Cardano', sector: 'Financials' },
-  'XRP': { name: 'XRP', sector: 'Financials' },
-  'DOT': { name: 'Polkadot', sector: 'Financials' },
-  'DOGE': { name: 'Dogecoin', sector: 'Financials' },
-  'USDT': { name: 'Tether', sector: 'Financials' },
-  'USDC': { name: 'USD Coin', sector: 'Financials' },
+const COMMON_CRYPTO: Record<string, { name: string; sector: string; assetType?: string; logo?: string }> = {
+  'BTC': { 
+    name: 'Bitcoin', 
+    sector: 'Crypto', 
+    assetType: 'Bitcoin',
+    logo: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png'
+  },
+  'ETH': { 
+    name: 'Ethereum', 
+    sector: 'Crypto', 
+    assetType: 'Crypto',
+    logo: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png'
+  },
+  'SOL': { 
+    name: 'Solana', 
+    sector: 'Crypto', 
+    assetType: 'Crypto',
+    logo: 'https://assets.coingecko.com/coins/images/4128/large/solana.png'
+  },
+  'BNB': { name: 'Binance Coin', sector: 'Crypto', assetType: 'Crypto' },
+  'ADA': { name: 'Cardano', sector: 'Crypto', assetType: 'Crypto' },
+  'XRP': { name: 'XRP', sector: 'Crypto', assetType: 'Crypto' },
+  'DOT': { name: 'Polkadot', sector: 'Crypto', assetType: 'Crypto' },
+  'DOGE': { name: 'Dogecoin', sector: 'Crypto', assetType: 'Crypto' },
+  'USDT': { name: 'Tether', sector: 'Crypto', assetType: 'Crypto' },
+  'USDC': { name: 'USD Coin', sector: 'Crypto', assetType: 'Crypto' },
 };
 
 /**
@@ -129,7 +146,7 @@ export const fetchCompanyProfile = async (symbol: string) => {
     if (COMMON_CRYPTO[formatted]) {
       return {
         ...COMMON_CRYPTO[formatted],
-        assetType: 'Crypto'
+        assetType: COMMON_CRYPTO[formatted].assetType || 'Crypto'
       };
     }
 
@@ -143,7 +160,8 @@ export const fetchCompanyProfile = async (symbol: string) => {
         return {
           name: profileData.name,
           sector: profileData.finnhubIndustry || 'Other',
-          assetType: profileData.ticker ? 'Stock' : 'ETF' 
+          assetType: profileData.ticker ? 'Stock' : 'ETF',
+          logo: profileData.logo 
         };
       }
     }
@@ -175,17 +193,17 @@ export const fetchCompanyProfile = async (symbol: string) => {
 };
 
 /**
- * Fetches 7 days of historical closing prices for sparkline visualization.
+ * Fetches 30 days of historical closing prices for sparkline visualization.
  */
 export const fetchHistoricalData = async (symbol: string): Promise<number[]> => {
   try {
     const { symbol: targetSymbol, isCrypto } = getExchangeSymbol(symbol);
     const now = Math.floor(Date.now() / 1000);
-    const sevenDaysAgo = now - (7 * 24 * 60 * 60);
+    const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
     
     // Use /crypto/candle for crypto symbols
     const endpoint = isCrypto ? 'crypto' : 'stock';
-    const url = `${FINNHUB_API_BASE}/${endpoint}/candle?symbol=${targetSymbol}&resolution=D&from=${sevenDaysAgo}&to=${now}&token=${API_TOKEN}`;
+    const url = `${FINNHUB_API_BASE}/${endpoint}/candle?symbol=${targetSymbol}&resolution=D&from=${thirtyDaysAgo}&to=${now}&token=${API_TOKEN}`;
     
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch history for ${symbol}`);
@@ -198,7 +216,7 @@ export const fetchHistoricalData = async (symbol: string): Promise<number[]> => 
     
     // Fallback for crypto: try original symbol if it was prefixed
     if (isCrypto) {
-      const fallbackUrl = `${FINNHUB_API_BASE}/stock/candle?symbol=${symbol.toUpperCase()}&resolution=D&from=${sevenDaysAgo}&to=${now}&token=${API_TOKEN}`;
+      const fallbackUrl = `${FINNHUB_API_BASE}/stock/candle?symbol=${symbol.toUpperCase()}&resolution=D&from=${thirtyDaysAgo}&to=${now}&token=${API_TOKEN}`;
       const fallbackResponse = await fetch(fallbackUrl);
       if (fallbackResponse.ok) {
         const fallbackData = await fallbackResponse.json();
@@ -279,14 +297,14 @@ export const fetchGlobalNews = async (): Promise<NewsItem[]> => {
  */
 export const summarizeNewsImpact = async (headline: string, content: string): Promise<string> => {
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: OPENAI_MODEL,
         messages: [
           {
             role: "system",
@@ -304,15 +322,128 @@ export const summarizeNewsImpact = async (headline: string, content: string): Pr
 
     if (!response.ok) {
         const err = await response.json();
-        console.error('Groq API Error:', err);
+        console.error('OpenAI API Error:', err);
         return "AI analysis temporarily unavailable.";
     }
 
     const result = await response.json();
     return result.choices[0]?.message?.content?.trim() || "Neutral market impact expected.";
   } catch (error) {
-    console.error('Groq Connection Error:', error);
+    console.error('OpenAI Connection Error:', error);
     return "Unable to generate AI impact summary.";
+  }
+};
+
+/**
+ * Provides a high-quality fallback image for news items that are missing one.
+ * Uses curated Unsplash images related to finance and the specific symbol.
+ */
+export const getNewsFallbackImage = (symbol?: string, source?: string): string => {
+  const stockCharts = [
+    'https://images.unsplash.com/photo-1611974714014-416b77943577',
+    'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f',
+    'https://images.unsplash.com/photo-1642390237263-1d5139bc8ec4',
+    'https://images.unsplash.com/photo-1611974714014-416b77943577'
+  ];
+  
+  const techImages = [
+    'https://images.unsplash.com/photo-1519389950473-47ba0277781c',
+    'https://images.unsplash.com/photo-1498050108023-c5249f4df085'
+  ];
+
+  const cryptoImages = [
+    'https://images.unsplash.com/photo-1518546305927-5a555bb7020d',
+    'https://images.unsplash.com/photo-1621761191319-c6fb620040bc'
+  ];
+
+  // Pick based on symbol or source
+  let baseUrl = stockCharts[0];
+  const upperSymbol = symbol?.toUpperCase() || '';
+  const upperSource = source?.toUpperCase() || '';
+
+  if (upperSymbol.includes('BTC') || upperSymbol.includes('ETH') || upperSymbol.includes('SOL') || upperSource.includes('CRYPTO')) {
+    baseUrl = cryptoImages[Math.floor(Math.random() * cryptoImages.length)];
+  } else if (['AAPL', 'MSFT', 'NVDA', 'GOOG', 'META'].includes(upperSymbol) || upperSource.includes('TECH')) {
+    baseUrl = techImages[Math.floor(Math.random() * techImages.length)];
+  } else {
+    baseUrl = stockCharts[Math.floor(Math.random() * stockCharts.length)];
+  }
+
+  return `${baseUrl}?auto=format&fit=crop&w=800&q=80`;
+};
+
+export const searchSymbols = async (query: string): Promise<any[]> => {
+  if (!query || query.length < 2) return [];
+  
+  try {
+    const url = `${FINNHUB_API_BASE}/search?q=${encodeURIComponent(query)}&token=${API_TOKEN}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Search failed');
+    
+    const data = await response.json();
+    return data.result || [];
+  } catch (error) {
+    console.error('Search Error:', error);
+    return [];
+  }
+};
+
+/**
+ * Answers a specific user question about their portfolio.
+ */
+export const askPortfolioQuestion = async (
+  question: string,
+  holdings: any[], 
+  summary: any, 
+  portfolioNews: NewsItem[]
+): Promise<string> => {
+  try {
+    const holdingsContext = holdings.map(h => `${h.symbol} (${h.quantity} shares @ $${h.currentPrice})`).join(', ');
+    const newsContext = portfolioNews.slice(0, 5).map(n => `[${n.relatedSymbol}] ${n.headline}`).join('; ');
+    
+    const prompt = `
+      User Question: "${question}"
+      
+      Portfolio Context:
+      - Total Value: $${summary.totalValue.toLocaleString()}
+      - Daily Change: ${summary.dailyChangePercentage.toFixed(2)}%
+      - Holdings: ${holdingsContext}
+      - Recent News: ${newsContext}
+      
+      As a Senior Portfolio Strategist, answer the user's question accurately based on the provided context. 
+      Be professional, direct, and concise (under 60 words). If you don't have enough data to answer specifically, provide a general professional insight.
+    `;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional investment analyst. Answer user questions about their portfolio with high-signal, concise financial insights."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_tokens: 300,
+        temperature: 0.4
+      }),
+    });
+
+    if (!response.ok) return "I'm sorry, I'm unable to process your question at the moment.";
+
+    const result = await response.json();
+    return result.choices[0]?.message?.content?.trim() || "I couldn't generate an answer for that question.";
+  } catch (error) {
+    console.error('Portfolio QA Error:', error);
+    return "Unable to answer questions at this time.";
   }
 };
 
@@ -329,34 +460,39 @@ export const analyzePortfolio = async (
     const newsContext = portfolioNews.slice(0, 10).map(n => `[${n.relatedSymbol}] ${n.headline}`).join('; ');
     
     const prompt = `
-      As a Senior Portfolio Strategist, analyze this portfolio:
+      Analyze this portfolio in the style of Seeking Alpha "Key Takeaways". 
       - Total Value: $${summary.totalValue.toLocaleString()}
-      - Daily Change: ${summary.dailyChangePercentage.toFixed(2)}% ($${summary.dailyChange.toLocaleString()})
-      - Holdings: ${holdingsContext}
-      - Recent News: ${newsContext}
+      - Daily Change: ${summary.dailyChangePercentage.toFixed(2)}%
+      - Assets: ${holdingsContext}
+      - News: ${newsContext}
       
-      Provide a professional 2-3 sentence analysis of how these specific global events and news are impacting this unique mix of assets. Focus on actionable risk or opportunity.
+      Rules:
+      1. Provide exactly 3-4 professional bullet points.
+      2. Skip all introductory text. Start immediately with the first point.
+      3. Style: Professional, analytical, and objective. Focus on catalysts, valuation, or risk.
+      4. Do NOT use any special formatting like asterisks (**) for bolding. Just plain text.
+      5. Each point should be a complete thought (approx. 20-30 words).
     `;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: OPENAI_MODEL,
         messages: [
           {
             role: "system",
-            content: "You are a professional investment analyst. Provide a high-signal, holistic portfolio summary in 2-3 sentences."
+            content: "You are a senior equity analyst at Seeking Alpha. Provide a professional 'Key Takeaways' summary. No intro, no filler, no bolding. Just high-signal financial analysis."
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        max_tokens: 200,
+        max_tokens: 400,
         temperature: 0.4
       }),
     });

@@ -1,18 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
-import type { Holding, WatchlistItem, PortfolioSummary, AssetAllocationItem, SectorAllocationItem, PerformanceMetrics } from '../types';
+import type { Holding, WatchlistItem, Transaction, PortfolioSummary, AssetAllocationItem, SectorAllocationItem, PerformanceMetrics } from '../types';
 import { 
   calculatePortfolioSummary, 
   calculateAssetAllocation, 
   calculateSectorBreakdown, 
   calculatePerformanceMetrics 
 } from '../utils/calculations';
-import { fetchMarketQuotes, fetchSingleQuote, fetchHistoricalData, fetchCompanyProfile, type MarketQuote } from '../services/marketData';
+import { 
+  fetchMarketQuotes, 
+  fetchSingleQuote, 
+  fetchHistoricalData, 
+  fetchCompanyProfile, 
+  BENCHMARK_SYMBOL,
+  type MarketQuote 
+} from '../services/marketData';
+
 
 interface PortfolioContextType {
   holdings: Holding[];
   watchlist: WatchlistItem[];
+  transactions: Transaction[];
   user: User | null;
   summary: PortfolioSummary;
   assetAllocation: AssetAllocationItem[];
@@ -35,6 +44,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [user, setUser] = useState<User | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
 
@@ -72,7 +82,11 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
   // Sync calculated state
   useEffect(() => {
     const baseSummary = calculatePortfolioSummary(holdings, 0);
-    setSummary({ ...baseSummary, lastUpdated });
+    setSummary(prev => ({ 
+      ...baseSummary, 
+      lastUpdated,
+      benchmarkReturn: prev.benchmarkReturn 
+    }));
     setAssetAllocation(calculateAssetAllocation(holdings));
     setSectorBreakdown(calculateSectorBreakdown(holdings));
     setPerformanceMetrics(calculatePerformanceMetrics(holdings));
@@ -96,12 +110,13 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
           id: item.id,
           symbol: item.symbol,
           name: item.name || item.symbol,
-          assetType: item.asset_type || 'Stock',
-          sector: item.sector || 'Other',
+          assetType: (item.symbol === 'BTC' ? 'Bitcoin' : (item.asset_type || 'Stock')) as AssetType,
+          sector: (item.symbol === 'BTC' ? 'Crypto' : (item.sector || 'Other')) as Sector,
           quantity: item.quantity,
           averageCost: item.average_cost,
           currentPrice: item.current_price || item.average_cost,
           priorClose: item.prior_close || item.average_cost,
+          logo: item.logo,
           purchaseDate: item.purchase_date,
           note: item.note,
           history: item.history || []
@@ -116,8 +131,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         .eq('user_id', userId);
       
       if (watchlistResult.error) {
-        // Table might not exist yet if user hasn't run the SQL
-        console.warn('Watchlist load error (ignoring if table missing):', watchlistResult.error);
+        console.warn('Watchlist load error:', watchlistResult.error);
       } else if (watchlistResult.data) {
         const mappedWatchlist: WatchlistItem[] = watchlistResult.data.map(item => ({
           id: item.id,
@@ -127,6 +141,55 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
           priorClose: item.prior_close || 0
         }));
         setWatchlist(mappedWatchlist);
+      }
+
+      // Load Transactions
+      const transactionsResult = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('transaction_date', { ascending: false });
+
+      if (transactionsResult.data) {
+        const mappedTransactions: Transaction[] = transactionsResult.data.map(item => ({
+          id: item.id,
+          holdingId: item.holding_id,
+          symbol: item.symbol,
+          type: item.type as 'buy' | 'sell',
+          quantity: item.quantity,
+          price: item.price,
+          date: item.transaction_date
+        }));
+        setTransactions(mappedTransactions);
+      }
+
+      // Automatically refresh prices once data is loaded from DB
+      if (holdingsResult.data || watchlistResult.data) {
+        const h = holdingsResult.data ? holdingsResult.data.map(item => ({
+          id: item.id,
+          symbol: item.symbol,
+          name: item.name || item.symbol,
+          assetType: (item.symbol === 'BTC' ? 'Bitcoin' : (item.asset_type || 'Stock')) as AssetType,
+          sector: (item.symbol === 'BTC' ? 'Crypto' : (item.sector || 'Other')) as Sector,
+          quantity: item.quantity,
+          averageCost: item.average_cost,
+          currentPrice: item.current_price || item.average_cost,
+          priorClose: item.prior_close || item.average_cost,
+          logo: item.logo,
+          purchaseDate: item.purchase_date,
+          note: item.note,
+          history: item.history || []
+        })) : [];
+        
+        const w = watchlistResult.data ? watchlistResult.data.map(item => ({
+          id: item.id,
+          symbol: item.symbol,
+          name: item.name || item.symbol,
+          currentPrice: item.current_price || 0,
+          priorClose: item.prior_close || 0
+        })) : [];
+
+        refreshPrices(h, w);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -145,7 +208,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   }, [user, loadData]);
 
-
   const addPosition = async (newHolding: Omit<Holding, 'id' | 'currentPrice' | 'priorClose' | 'history'>) => {
     if (!user) return;
     setIsLoading(true);
@@ -153,6 +215,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     let currentPrice = newHolding.averageCost;
     let priorClose = newHolding.averageCost;
     let name = newHolding.name;
+    let logo = (newHolding as any).logo;
     let history: number[] = [];
 
     try {
@@ -166,6 +229,13 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         priorClose = quote.priorClose;
         if (quote.name) name = quote.name;
       }
+      
+      // Re-fetch profile for logo if not provided
+      if (!logo) {
+        const profile = await fetchCompanyProfile(newHolding.symbol.toUpperCase());
+        if (profile?.logo) logo = profile.logo;
+      }
+
       if (histData) history = histData;
 
       const { data, error } = await supabase
@@ -182,14 +252,45 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
           note: newHolding.note,
           current_price: currentPrice,
           prior_close: priorClose,
+          logo: logo,
           history: history
         }])
         .select();
 
       if (error) throw error;
       if (data && data.length > 0) {
-        const added = { ...newHolding, id: data[0].id, currentPrice, priorClose, history, name };
+        const added = { ...newHolding, id: data[0].id, currentPrice, priorClose, history, name, logo };
         setHoldings(prev => [...prev, added]);
+
+        // Create initial transaction record
+        await supabase.from('transactions').insert([{
+          user_id: user.id,
+          holding_id: data[0].id,
+          symbol: newHolding.symbol.toUpperCase(),
+          type: 'buy',
+          quantity: newHolding.quantity,
+          price: newHolding.averageCost,
+          transaction_date: newHolding.purchaseDate
+        }]);
+
+        // Refresh transactions state
+        const { data: newTx } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('transaction_date', { ascending: false });
+        
+        if (newTx) {
+          setTransactions(newTx.map(item => ({
+            id: item.id,
+            holdingId: item.holding_id,
+            symbol: item.symbol,
+            type: item.type as 'buy' | 'sell',
+            quantity: item.quantity,
+            price: item.price,
+            date: item.transaction_date
+          })));
+        }
       } else {
         throw new Error('Failed to create holding record.');
       }
@@ -254,10 +355,40 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         .eq('id', id);
 
       if (error) throw error;
+
+      // Create transaction record
+      await supabase.from('transactions').insert([{
+        user_id: user.id,
+        holding_id: id,
+        symbol: holding.symbol,
+        type: type,
+        quantity: quantity,
+        price: price,
+        transaction_date: new Date().toISOString().split('T')[0]
+      }]);
       
       setHoldings(prev => prev.map(h => 
         h.id === id ? { ...h, quantity: newQuantity, averageCost: newAverageCost } : h
       ));
+
+      // Refresh transactions state
+      const { data: newTx } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('transaction_date', { ascending: false });
+      
+      if (newTx) {
+        setTransactions(newTx.map(item => ({
+          id: item.id,
+          holdingId: item.holding_id,
+          symbol: item.symbol,
+          type: item.type as 'buy' | 'sell',
+          quantity: item.quantity,
+          price: item.price,
+          date: item.transaction_date
+        })));
+      }
     } catch (err) {
       console.error('Error recording transaction:', err);
       throw err;
@@ -355,7 +486,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     
     const holdingSymbols = currentHoldings.map(h => h.symbol.toUpperCase());
     const watchlistSymbols = currentWatchlist.map(w => w.symbol.toUpperCase());
-    const allUniqueSymbols = Array.from(new Set([...holdingSymbols, ...watchlistSymbols]));
+    const allUniqueSymbols = Array.from(new Set([...holdingSymbols, ...watchlistSymbols, BENCHMARK_SYMBOL]));
 
     try {
       const results = await Promise.all([
@@ -365,6 +496,12 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
       
       const quotes = results[0] as MarketQuote[];
       const histories = results.slice(1) as number[][];
+
+      // Calculate benchmark return (SPY)
+      const benchmarkQuote = quotes.find(q => q.symbol === BENCHMARK_SYMBOL);
+      const benchmarkReturn = benchmarkQuote 
+        ? ((benchmarkQuote.price - benchmarkQuote.priorClose) / benchmarkQuote.priorClose) * 100 
+        : undefined;
       
       const updatedHoldings = currentHoldings.map((h, index) => {
         const quote = quotes.find(q => q.symbol === h.symbol.toUpperCase());
@@ -388,6 +525,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
       setHoldings(updatedHoldings);
       setWatchlist(updatedWatchlist);
+      setSummary(prev => ({ ...prev, benchmarkReturn }));
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (error) {
       console.error('Refresh failed:', error);
@@ -404,6 +542,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     <PortfolioContext.Provider value={{
       holdings,
       watchlist,
+      transactions,
       user,
       summary,
       assetAllocation,
@@ -415,7 +554,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
       removePosition,
       addToWatchlist,
       removeFromWatchlist,
-      refreshPrices: () => refreshPrices(),
+      refreshPrices,
       isLoading,
       signOut
     }}>

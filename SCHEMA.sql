@@ -9,10 +9,12 @@ CREATE TABLE IF NOT EXISTS public.holdings (
     asset_type TEXT DEFAULT 'Stock',
     sector TEXT DEFAULT 'Other',
     quantity NUMERIC NOT NULL DEFAULT 0,
-    average_cost NUMERIC NOT NULL DEFAULT 0,
+    average_cost NUMERIC NOT NULL,
     current_price NUMERIC,
     prior_close NUMERIC,
+    logo TEXT,
     purchase_date DATE,
+
     note TEXT,
     history NUMERIC[] DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -65,6 +67,35 @@ CREATE POLICY "Users can delete their own watchlist"
 ON public.watchlist FOR DELETE 
 USING (auth.uid() = user_id);
 
--- Optional: Create an index on user_id for performance
+-- 3. Create Transactions Table
+CREATE TABLE IF NOT EXISTS public.transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) NOT NULL,
+    holding_id UUID REFERENCES public.holdings(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('buy', 'sell')),
+    quantity NUMERIC NOT NULL,
+    price NUMERIC NOT NULL,
+    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS for transactions
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for transactions
+CREATE POLICY "Users can view their own transactions"
+ON public.transactions FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own transactions"
+ON public.transactions FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Optional: Create an index on user_id and holding_id
+CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON public.transactions (user_id);
+CREATE INDEX IF NOT EXISTS transactions_holding_id_idx ON public.transactions (holding_id);
+
+-- Optional: Create an index on user_id and date for performance
 CREATE INDEX IF NOT EXISTS holdings_user_id_idx ON public.holdings (user_id);
 CREATE INDEX IF NOT EXISTS watchlist_user_id_idx ON public.watchlist (user_id);

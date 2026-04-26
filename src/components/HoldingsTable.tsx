@@ -26,11 +26,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
       return h.history;
     }
     
-    // Fallback for immediate UI feedback if history hasn't loaded
+    // Fallback for immediate UI feedback if history hasn't loaded (30 days)
     const base = h.currentPrice;
     const history = [];
-    for (let i = 0; i < 7; i++) {
-      history.push(base * (1 + (Math.random() * 0.02 - 0.01)));
+    for (let i = 0; i < 30; i++) {
+      history.push(base * (1 + (Math.random() * 0.04 - 0.02)));
     }
     history.push(base);
     return history;
@@ -45,7 +45,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
     }
   };
 
-  const sortedHoldings = [...metrics].sort((a, b) => {
+  const sortedHoldings = [...metrics].map(h => ({
+    ...h,
+    weight: (h.marketValue / summary.totalValue) * 100
+  })).sort((a, b) => {
     const aValue = (a as any)[sortField];
     const bValue = (b as any)[sortField];
     return sortOrder === 'asc' ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1);
@@ -127,8 +130,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
               <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('dailyChangePercentage')}>
                 <div className="flex items-center gap-2">Day Change <SortIcon field="dailyChangePercentage" /></div>
               </th>
-              <th className="px-6 py-4">Weight</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('weight')}>
+                <div className="flex items-center gap-2">Weight <SortIcon field="weight" /></div>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -140,17 +144,22 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
+                      {h.logo ? (
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-white flex-shrink-0 border border-border">
+                          <img src={h.logo} alt={h.symbol} className="w-full h-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-sidebar border border-border flex items-center justify-center flex-shrink-0">
+                          <span className="text-[10px] font-bold text-gray-400">{h.symbol.slice(0, 2)}</span>
+                        </div>
+                      )}
                       <div className="flex flex-col">
                         <span className="font-bold text-white group-hover:text-blue-400 transition-colors">{h.symbol}</span>
                         <span className="text-xs text-gray-500 truncate max-w-[100px]">{h.name}</span>
                       </div>
-                      <Sparkline 
-                        data={getHistory(h)} 
-                        color={h.dailyChangePercentage >= 0 ? '#10b981' : '#ef4444'} 
-                      />
                     </div>
                   </td>
-                  <td className="px-6 py-4 font-medium">{h.quantity}</td>
+                  <td className="px-6 py-4 font-medium">{h.quantity.toFixed(2)}</td>
                   <td className="px-6 py-4 font-medium">{formatCurrency(h.averageCost)}</td>
                   <td className="px-6 py-4 font-medium">{formatCurrency(h.currentPrice)}</td>
                   <td className="px-6 py-4 font-bold">{formatCurrency(h.marketValue)}</td>
@@ -174,21 +183,16 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ onEdit }) => {
                       <div className="w-12 h-1.5 bg-sidebar rounded-full overflow-hidden hidden sm:block">
                         <div 
                           className="h-full bg-blue-500" 
-                          style={{ width: `${(h.marketValue / summary.totalValue * 100)}%` }}
+                          style={{ width: `${h.weight}%` }}
                         />
                       </div>
-                      <span className="text-xs font-medium">{(h.marketValue / summary.totalValue * 100).toFixed(1)}%</span>
+                      <span className="text-xs font-medium">{h.weight.toFixed(1)}%</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="p-1 hover:bg-sidebar rounded transition-colors text-gray-500 hover:text-white">
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
                   </td>
                 </tr>
                 {selectedHoldingId === h.id && (
                   <tr className="bg-sidebar/30 border-t-0">
-                    <td colSpan={9} className="px-6 py-8 border-t-0">
+                    <td colSpan={8} className="px-6 py-8 border-t-0">
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-top-2 duration-200">
                         {/* Left Column: Stats & Actions */}
                         <div className="space-y-8">

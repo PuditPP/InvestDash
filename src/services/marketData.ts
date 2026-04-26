@@ -295,10 +295,6 @@ export const fetchGlobalNews = async (): Promise<NewsItem[]> => {
 };
 
 /**
- * Summarizes news impact using Groq AI (Llama 3).
- * Groq is much faster and more reliable than Hugging Face free tier.
- */
-/**
  * Centralized AI handler to support secure proxying in production.
  */
 const callAIProxy = async (action: 'summarize' | 'analyze' | 'ask', payload: any): Promise<any> => {
@@ -409,5 +405,56 @@ export const analyzePortfolio = async (
   } catch (error) {
     console.error('Portfolio Analysis Error:', error);
     return "Unable to generate analysis at this time.";
+  }
+};
+
+/**
+ * Provides a high-quality fallback image for news items that are missing one.
+ */
+export const getNewsFallbackImage = (symbol?: string, source?: string): string => {
+  const stockCharts = [
+    'https://images.unsplash.com/photo-1611974714014-416b77943577',
+    'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f',
+    'https://images.unsplash.com/photo-1642390237263-1d5139bc8ec4'
+  ];
+  
+  const techImages = [
+    'https://images.unsplash.com/photo-1519389950473-47ba0277781c',
+    'https://images.unsplash.com/photo-1498050108023-c5249f4df085'
+  ];
+
+  const cryptoImages = [
+    'https://images.unsplash.com/photo-1518546305927-5a555bb7020d',
+    'https://images.unsplash.com/photo-1621761191319-c6fb620040bc'
+  ];
+
+  let baseUrl = stockCharts[0];
+  const upperSymbol = symbol?.toUpperCase() || '';
+  const upperSource = source?.toUpperCase() || '';
+
+  if (upperSymbol.includes('BTC') || upperSymbol.includes('ETH') || upperSource.includes('CRYPTO')) {
+    baseUrl = cryptoImages[Math.floor(Math.random() * cryptoImages.length)];
+  } else if (['AAPL', 'MSFT', 'NVDA', 'GOOG', 'META'].includes(upperSymbol) || upperSource.includes('TECH')) {
+    baseUrl = techImages[Math.floor(Math.random() * techImages.length)];
+  } else {
+    baseUrl = stockCharts[Math.floor(Math.random() * stockCharts.length)];
+  }
+
+  return `${baseUrl}?auto=format&fit=crop&w=800&q=80`;
+};
+
+export const searchSymbols = async (query: string): Promise<any[]> => {
+  if (!query || query.length < 2) return [];
+  
+  try {
+    const url = `${FINNHUB_API_BASE}/search?q=${encodeURIComponent(query)}&token=${API_TOKEN}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Search failed');
+    
+    const data = await response.json();
+    return data.result || [];
+  } catch (error) {
+    console.error('Search Error:', error);
+    return [];
   }
 };

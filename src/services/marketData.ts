@@ -9,6 +9,9 @@ const API_TOKEN = import.meta.env.VITE_FINNHUB_API_KEY;
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 const OPENAI_MODEL = 'gpt-4o';
 
+// For production security: Move keys to a backend/proxy
+const PROXY_URL = import.meta.env.VITE_PROXY_URL; 
+
 export const BENCHMARK_SYMBOL = 'SPY'; // S&P 500 ETF
 
 export interface MarketQuote {
@@ -295,102 +298,66 @@ export const fetchGlobalNews = async (): Promise<NewsItem[]> => {
  * Summarizes news impact using Groq AI (Llama 3).
  * Groq is much faster and more reliable than Hugging Face free tier.
  */
+/**
+ * Centralized AI handler to support secure proxying in production.
+ */
+const callAIProxy = async (action: 'summarize' | 'analyze' | 'ask', payload: any): Promise<any> => {
+  // 1. If we have a proxy URL (Production), use it to hide keys
+  if (PROXY_URL) {
+    const response = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, payload })
+    });
+    if (!response.ok) throw new Error('Proxy error');
+    return await response.json();
+  }
+
+  // 2. Fallback to direct call (Development only)
+  if (!OPENAI_API_KEY) throw new Error('No API Key');
+
+  const getSystemContent = () => {
+    if (action === 'summarize') return "You are a senior financial analyst. Provide a 1-sentence summary of the investment impact of news. Be concise and professional.";
+    if (action === 'ask') return "You are a professional investment analyst. Answer user questions about their portfolio with high-signal, concise financial insights.";
+    return "You are a senior equity analyst at Seeking Alpha. Provide a professional 'Key Takeaways' summary. No intro, no filler, no bolding. Just high-signal financial analysis.";
+  };
+
+  const getUserContent = () => {
+    if (action === 'summarize') return `Analyze this news: Headline: ${payload.headline}. Summary: ${payload.content}. What is the short-term investment impact?`;
+    return payload.prompt;
+  };
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: "system", content: getSystemContent() },
+        { role: "user", content: getUserContent() }
+      ],
+      max_tokens: action === 'summarize' ? 100 : 400,
+      temperature: 0.4
+    }),
+  });
+
+  if (!response.ok) throw new Error('API Error');
+  return await response.json();
+};
+
 export const summarizeNewsImpact = async (headline: string, content: string): Promise<string> => {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: "You are a senior financial analyst. Provide a 1-sentence summary of the investment impact of news. Be concise and professional."
-          },
-          {
-            role: "user",
-            content: `Analyze this news: Headline: ${headline}. Summary: ${content}. What is the short-term investment impact?`
-          }
-        ],
-        max_tokens: 100,
-        temperature: 0.5
-      }),
-    });
-
-    if (!response.ok) {
-        const err = await response.json();
-        console.error('OpenAI API Error:', err);
-        return "AI analysis temporarily unavailable.";
-    }
-
-    const result = await response.json();
+    const result = await callAIProxy('summarize', { headline, content });
     return result.choices[0]?.message?.content?.trim() || "Neutral market impact expected.";
   } catch (error) {
-    console.error('OpenAI Connection Error:', error);
+    console.error('AI Analysis failed:', error);
     return "Unable to generate AI impact summary.";
   }
 };
 
-/**
- * Provides a high-quality fallback image for news items that are missing one.
- * Uses curated Unsplash images related to finance and the specific symbol.
- */
-export const getNewsFallbackImage = (symbol?: string, source?: string): string => {
-  const stockCharts = [
-    'https://images.unsplash.com/photo-1611974714014-416b77943577',
-    'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f',
-    'https://images.unsplash.com/photo-1642390237263-1d5139bc8ec4',
-    'https://images.unsplash.com/photo-1611974714014-416b77943577'
-  ];
-  
-  const techImages = [
-    'https://images.unsplash.com/photo-1519389950473-47ba0277781c',
-    'https://images.unsplash.com/photo-1498050108023-c5249f4df085'
-  ];
-
-  const cryptoImages = [
-    'https://images.unsplash.com/photo-1518546305927-5a555bb7020d',
-    'https://images.unsplash.com/photo-1621761191319-c6fb620040bc'
-  ];
-
-  // Pick based on symbol or source
-  let baseUrl = stockCharts[0];
-  const upperSymbol = symbol?.toUpperCase() || '';
-  const upperSource = source?.toUpperCase() || '';
-
-  if (upperSymbol.includes('BTC') || upperSymbol.includes('ETH') || upperSymbol.includes('SOL') || upperSource.includes('CRYPTO')) {
-    baseUrl = cryptoImages[Math.floor(Math.random() * cryptoImages.length)];
-  } else if (['AAPL', 'MSFT', 'NVDA', 'GOOG', 'META'].includes(upperSymbol) || upperSource.includes('TECH')) {
-    baseUrl = techImages[Math.floor(Math.random() * techImages.length)];
-  } else {
-    baseUrl = stockCharts[Math.floor(Math.random() * stockCharts.length)];
-  }
-
-  return `${baseUrl}?auto=format&fit=crop&w=800&q=80`;
-};
-
-export const searchSymbols = async (query: string): Promise<any[]> => {
-  if (!query || query.length < 2) return [];
-  
-  try {
-    const url = `${FINNHUB_API_BASE}/search?q=${encodeURIComponent(query)}&token=${API_TOKEN}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Search failed');
-    
-    const data = await response.json();
-    return data.result || [];
-  } catch (error) {
-    console.error('Search Error:', error);
-    return [];
-  }
-};
-
-/**
- * Answers a specific user question about their portfolio.
- */
 export const askPortfolioQuestion = async (
   question: string,
   holdings: any[], 
@@ -403,53 +370,22 @@ export const askPortfolioQuestion = async (
     
     const prompt = `
       User Question: "${question}"
-      
       Portfolio Context:
       - Total Value: $${summary.totalValue.toLocaleString()}
       - Daily Change: ${summary.dailyChangePercentage.toFixed(2)}%
       - Holdings: ${holdingsContext}
       - Recent News: ${newsContext}
-      
-      As a Senior Portfolio Strategist, answer the user's question accurately based on the provided context. 
-      Be professional, direct, and concise (under 60 words). If you don't have enough data to answer specifically, provide a general professional insight.
+      As a Senior Portfolio Strategist, answer concisely (under 60 words).
     `;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: "You are a professional investment analyst. Answer user questions about their portfolio with high-signal, concise financial insights."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 300,
-        temperature: 0.4
-      }),
-    });
-
-    if (!response.ok) return "I'm sorry, I'm unable to process your question at the moment.";
-
-    const result = await response.json();
-    return result.choices[0]?.message?.content?.trim() || "I couldn't generate an answer for that question.";
+    const result = await callAIProxy('ask', { prompt });
+    return result.choices[0]?.message?.content?.trim() || "I couldn't generate an answer.";
   } catch (error) {
     console.error('Portfolio QA Error:', error);
     return "Unable to answer questions at this time.";
   }
 };
 
-/**
- * Generates a holistic AI analysis of the entire portfolio.
- */
 export const analyzePortfolio = async (
   holdings: any[], 
   summary: any, 
@@ -461,48 +397,17 @@ export const analyzePortfolio = async (
     
     const prompt = `
       Analyze this portfolio in the style of Seeking Alpha "Key Takeaways". 
-      - Total Value: $${summary.totalValue.toLocaleString()}
+      - Value: $${summary.totalValue.toLocaleString()}
       - Daily Change: ${summary.dailyChangePercentage.toFixed(2)}%
       - Assets: ${holdingsContext}
       - News: ${newsContext}
-      
-      Rules:
-      1. Provide exactly 3-4 professional bullet points.
-      2. Skip all introductory text. Start immediately with the first point.
-      3. Style: Professional, analytical, and objective. Focus on catalysts, valuation, or risk.
-      4. Do NOT use any special formatting like asterisks (**) for bolding. Just plain text.
-      5. Each point should be a complete thought (approx. 20-30 words).
+      Provide 3-4 professional bullet points. Plain text only.
     `;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: "You are a senior equity analyst at Seeking Alpha. Provide a professional 'Key Takeaways' summary. No intro, no filler, no bolding. Just high-signal financial analysis."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 400,
-        temperature: 0.4
-      }),
-    });
-
-    if (!response.ok) return "Portfolio analysis is currently updating. Please check back shortly.";
-
-    const result = await response.json();
-    return result.choices[0]?.message?.content?.trim() || "Portfolio performance is steady within current market parameters.";
+    const result = await callAIProxy('analyze', { prompt });
+    return result.choices[0]?.message?.content?.trim() || "Portfolio analysis is currently steady.";
   } catch (error) {
     console.error('Portfolio Analysis Error:', error);
-    return "Unable to generate holistic portfolio analysis at this time.";
+    return "Unable to generate analysis at this time.";
   }
 };

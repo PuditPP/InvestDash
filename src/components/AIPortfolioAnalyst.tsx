@@ -131,6 +131,14 @@ export const AIPortfolioAnalyst: React.FC = () => {
                   Daily Strategy
                 </span>
               </div>
+              <button 
+                onClick={() => performAnalysis(true)}
+                disabled={isAnalyzing}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all group/btn"
+                title="Refresh AI Analysis"
+              >
+                <RefreshCcw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : 'group-hover/btn:rotate-180 transition-transform duration-500'}`} />
+              </button>
             </div>
 
             {isAnalyzing && !analysis ? (

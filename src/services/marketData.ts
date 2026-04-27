@@ -294,54 +294,88 @@ export const fetchGlobalNews = async (): Promise<NewsItem[]> => {
   }
 };
 
-/**
- * Centralized AI handler to support secure proxying in production.
- */
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 const callAIProxy = async (action: 'summarize' | 'analyze' | 'ask', payload: any): Promise<any> => {
-  // 1. If we have a proxy URL (Production), use it to hide keys
+  let lastError: any = null;
+
+  // 1. Try Proxy first if configured
   if (PROXY_URL) {
-    const response = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, payload })
-    });
-    if (!response.ok) throw new Error('Proxy error');
-    return await response.json();
+    try {
+      const response = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ action, payload })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (!data.error) return data;
+        lastError = new Error(data.error.message || 'AI Error via Proxy');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        lastError = new Error(`Proxy error (${response.status}): ${errorData.error?.message || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      console.warn('Proxy request failed (CORS or Network):', err.message);
+      lastError = err;
+    }
   }
 
-  // 2. Fallback to direct call (Development only)
-  if (!OPENAI_API_KEY) throw new Error('No API Key');
+  // 2. Fallback to direct call if proxy failed or was not configured
+  // We do this if we have an OPENAI_API_KEY available locally
+  if (OPENAI_API_KEY) {
+    if (lastError) {
+      console.info('Proxy failed, attempting direct OpenAI call as fallback...');
+    }
 
-  const getSystemContent = () => {
-    if (action === 'summarize') return "You are a senior financial analyst. Provide a 1-sentence summary of the investment impact of news. Be concise and professional.";
-    if (action === 'ask') return "You are a professional investment analyst. Answer user questions about their portfolio with high-signal, concise financial insights.";
-    return "You are a senior equity analyst at Seeking Alpha. Provide a professional 'Key Takeaways' summary. No intro, no filler, no bolding. Just high-signal financial analysis.";
-  };
+    const getSystemContent = () => {
+      if (action === 'summarize') return "You are a senior financial analyst. Provide a 1-sentence summary of the investment impact of news. Be concise and professional.";
+      if (action === 'ask') return "You are a professional investment analyst. Answer user questions about their portfolio with high-signal, concise financial insights.";
+      return "You are a senior equity analyst at Seeking Alpha. Provide a professional 'Key Takeaways' summary. No intro, no filler, no bolding. Just high-signal financial analysis.";
+    };
 
-  const getUserContent = () => {
-    if (action === 'summarize') return `Analyze this news: Headline: ${payload.headline}. Summary: ${payload.content}. What is the short-term investment impact?`;
-    return payload.prompt;
-  };
+    const getUserContent = () => {
+      if (action === 'summarize') return `Analyze this news: Headline: ${payload.headline}. Summary: ${payload.content}. What is the short-term investment impact?`;
+      return payload.prompt;
+    };
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: "system", content: getSystemContent() },
-        { role: "user", content: getUserContent() }
-      ],
-      max_tokens: action === 'summarize' ? 100 : 400,
-      temperature: 0.4
-    }),
-  });
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: "system", content: getSystemContent() },
+            { role: "user", content: getUserContent() }
+          ],
+          max_tokens: action === 'summarize' ? 150 : 500,
+          temperature: 0.4
+        }),
+      });
 
-  if (!response.ok) throw new Error('API Error');
-  return await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`OpenAI API Error (${response.status}): ${errorData.error?.message || 'Unknown error'}`);
+      }
+      
+      return await response.json();
+    } catch (err: any) {
+      console.error('Direct OpenAI call also failed:', err.message);
+      throw new Error(`AI Service Unavailable. Proxy: ${lastError?.message || 'N/A'}. Direct: ${err.message}`);
+    }
+  }
+
+  // If we reach here, both failed or weren't configured
+  throw lastError || new Error('AI Service not configured (Missing Proxy URL or OpenAI Key)');
 };
 
 export const summarizeNewsImpact = async (headline: string, content: string): Promise<string> => {
@@ -376,9 +410,9 @@ export const askPortfolioQuestion = async (
 
     const result = await callAIProxy('ask', { prompt });
     return result.choices[0]?.message?.content?.trim() || "I couldn't generate an answer.";
-  } catch (error) {
+  } catch (error: any) {
     console.error('Portfolio QA Error:', error);
-    return "Unable to answer questions at this time.";
+    return `Unable to answer at this time. ${error.message || ''}`;
   }
 };
 
@@ -402,9 +436,9 @@ export const analyzePortfolio = async (
 
     const result = await callAIProxy('analyze', { prompt });
     return result.choices[0]?.message?.content?.trim() || "Portfolio analysis is currently steady.";
-  } catch (error) {
+  } catch (error: any) {
     console.error('Portfolio Analysis Error:', error);
-    return "Unable to generate analysis at this time.";
+    return `Analysis failed: ${error.message || 'Check your internet connection or API keys.'}`;
   }
 };
 

@@ -35,6 +35,9 @@ A real-time investment portfolio dashboard built with **React 19**, **TypeScript
 - `SummaryCards.tsx`: Aggregates portfolio totals for display.
 
 ## Recent Updates (Changelog)
+- **April 26, 2026**: Added **Manual Refresh** to `AIPortfolioAnalyst`. Users can now click a refresh icon to bypass the daily cache and generate a fresh analysis.
+- **April 26, 2026**: Fixed **AI Portfolio Analyst** error. Updated model to `gpt-4o-mini` for better reliability, improved error handling and logging in `marketData.ts`, and configured `VITE_PROXY_URL` to use Supabase Edge Functions.
+- **April 26, 2026**: Updated **OpenAI API Key** in `.env` and `Open AI API.rtf` to the latest version.
 - **April 26, 2026**: Updated **BTC Categorization**. Bitcoin is now classified under the "Bitcoin" Asset Allocation and "Crypto" Sector. Added relevant types, colors, and automatic mapping logic in `PortfolioContext.tsx` and `marketData.ts`.
 - **April 26, 2026**: Fixed issue where portfolio data didn't update on initial load. Implemented **Automatic Price Refresh** in `PortfolioContext.tsx` that triggers immediately after loading user data from Supabase.
 - **April 26, 2026**: Removed **Portfolio History** section. Excised the `PortfolioHistoryChart` UI, the `portfolio_history` database table definition, and the automated snapshot logic in `PortfolioContext.tsx`.
